@@ -36,7 +36,7 @@ public class TestFrame extends javax.swing.JFrame {
      */
     public TestFrame() {
         initComponents();
-        this.chart = new PIDChart();
+        this.chart = new PIDChart("testLog.csv");
         JPanel chartPanel = new ChartPanel(chart.getChart(), true, true, true, true, true);
 
         jPanel1.add(chartPanel, new GridBagConstraints(0, 0, 1, 1, 1, 1, GridBagConstraints.FIRST_LINE_START, GridBagConstraints.BOTH, new Insets(0, 0, 5, 0), 0, 0));
@@ -45,9 +45,10 @@ public class TestFrame extends javax.swing.JFrame {
         Runnable generateData = () -> {
             int value;
             do {
-                value = (int) (Math.random() * 100);
-                System.out.println(value);
-                chart.setError(value);
+                //value = (int) (Math.random() * 100);
+                //System.out.println(value);
+                //chart.setError(value);
+                chart.setError((int) (Math.random() * 100), (int) (Math.random() * 100), (int) (Math.random() * 100));
                 try {
                     Thread.sleep(500);
                 } catch (InterruptedException ex) {

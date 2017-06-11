@@ -17,6 +17,9 @@ package mx.iteso.msc.ms705080.togapp.ui;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.util.Date;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.DateAxis;
@@ -39,29 +42,62 @@ public class PIDChart {
     protected TimeSeriesCollection dataset;
 
     private TimeSeries errorSeries;
+    private TimeSeries integralSeries;
+    private TimeSeries derivativeSeries;
+
+    // Log file
+    private PrintWriter pw = null;
+    private StringBuilder sb = new StringBuilder();
 
     /**
      * Create a new instance of this chart.
+     * @param logName
      */
-    public PIDChart() {
+    public PIDChart(String logName) {
         this.errorSeries = new TimeSeries("Error", "Value", "Time");
+        this.integralSeries = new TimeSeries("Integral", "Value", "Time");
+        this.derivativeSeries = new TimeSeries("Derivative", "Value", "Time");
 
-        errorSeries.setMaximumItemCount(1000);
+        errorSeries.setMaximumItemCount(40);
+        integralSeries.setMaximumItemCount(40);
+        derivativeSeries.setMaximumItemCount(40);
 
         dataset = new TimeSeriesCollection();
         dataset.addSeries(this.errorSeries);
+        dataset.addSeries(this.integralSeries);
+        dataset.addSeries(this.derivativeSeries);
 
         createChart("Time", "Value", "Error", true);
+
+        // Initialize log
+        try {
+            pw = new PrintWriter(new File(logName));
+            sb.append("Time,");
+            sb.append("Error,");
+            sb.append("Integral,");
+            sb.append("Derivative\n");
+        } catch (FileNotFoundException exc) {
+            System.exit(-1);
+        }
     }
 
     /**
      * Update the chart.
      *
-     * @param tuple The tuple containing the current signal level.
+     * @param error
+     * @param integral
+     * @param derivative
      */
-    public void setError(double error) {
+    public void setError(double error, double integral, double derivative) {
         Millisecond ms = new Millisecond(new Date());
         errorSeries.addOrUpdate(ms, error);
+        integralSeries.addOrUpdate(ms, integral);
+        derivativeSeries.addOrUpdate(ms, derivative);
+        // Append data to log
+        sb.append(System.currentTimeMillis()).append(",");
+        sb.append(error).append(",");
+        sb.append(integral).append(",");
+        sb.append(derivative).append("\n");
     }
 
     protected void createChart(String domainAxisTitle, String rangeAxisTitle, String chartsTitle, boolean includeLegend) {
@@ -70,6 +106,8 @@ public class PIDChart {
 
         XYItemRenderer renderer = new XYLineAndShapeRenderer(true, false);
         renderer.setSeriesPaint(0, Color.blue);
+        renderer.setSeriesPaint(1, Color.magenta);
+        renderer.setSeriesPaint(2, Color.green);
         renderer.setStroke(new BasicStroke(2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL));
 
         XYPlot plot = new XYPlot(dataset, domain, range, renderer);
@@ -89,6 +127,12 @@ public class PIDChart {
 
         chart = new JFreeChart(plot);
         chart.setBackgroundPaint(Color.white);
+    }
+    
+    public void closeLog() {
+        if (pw != null) {
+            pw.close();
+        }
     }
 
     /**

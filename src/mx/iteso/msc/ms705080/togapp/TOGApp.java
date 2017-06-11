@@ -15,11 +15,11 @@
  */
 package mx.iteso.msc.ms705080.togapp;
 
+import javax.swing.JFrame;
+import javax.swing.UIManager;
+import javax.swing.UnsupportedLookAndFeelException;
 import mx.iteso.msc.ms705080.togapp.ui.MainForm;
 import org.opencv.core.Core;
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
-import org.opencv.core.Scalar;
 
 /**
  *
@@ -36,10 +36,33 @@ public class TOGApp {
      */
     public static void main(String[] args) {
         /* Create and display the form */
-        java.awt.EventQueue.invokeLater(new Runnable() {
-            public void run() {
-                new MainForm().setVisible(true);
+        java.awt.EventQueue.invokeLater(() -> {
+            DroneManager dm = null;
+
+            try {
+                // Set UI theme
+                try {
+                    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                } catch (ClassNotFoundException | IllegalAccessException | InstantiationException | UnsupportedLookAndFeelException e) {
+                    e.printStackTrace();
+                }
+                
+                // Initialize UAV Manager
+                dm = new DroneManager();
+
+                // Show main window
+                // Center
+                JFrame mainForm = new MainForm(dm);
+                mainForm.setLocationRelativeTo(null);
+                mainForm.setVisible(true);
+
                 //new TestFrame().setVisible(true);
+            } catch (Exception e) {
+                e.printStackTrace();
+                if (dm != null) {
+                    dm.stopDrone();
+                }
+                System.exit(-1);
             }
         });
     }

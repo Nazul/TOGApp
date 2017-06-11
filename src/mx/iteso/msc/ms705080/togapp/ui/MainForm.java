@@ -15,54 +15,18 @@
  */
 package mx.iteso.msc.ms705080.togapp.ui;
 
-import com.google.zxing.BinaryBitmap;
-import com.google.zxing.EncodeHintType;
-import com.google.zxing.MultiFormatReader;
-import com.google.zxing.NotFoundException;
-import com.google.zxing.RGBLuminanceSource;
-import com.google.zxing.Result;
-import com.google.zxing.ResultPoint;
-import com.google.zxing.common.HybridBinarizer;
-import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
-import de.yadrone.base.ARDrone;
-import de.yadrone.base.command.CommandManager;
-import de.yadrone.base.command.VideoChannel;
-import de.yadrone.base.command.VideoCodec;
 import java.awt.GridBagConstraints;
 import java.awt.Insets;
 import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import javax.imageio.ImageIO;
 import javax.swing.JPanel;
-import javax.swing.UIManager;
+import mx.iteso.msc.ms705080.togapp.DroneManager;
 import mx.iteso.msc.ms705080.togapp.TrackedObject;
 import mx.iteso.msc.ms705080.togapp.TrackedObjectColor;
+import mx.iteso.msc.ms705080.togapp.cv.ChannelValuesListener;
+import mx.iteso.msc.ms705080.togapp.cv.VideoProcessor;
+import mx.iteso.msc.ms705080.togapp.cv.VideoProcessor.ProcessType;
 import org.jfree.chart.ChartPanel;
-import org.opencv.core.Core;
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
-import org.opencv.core.MatOfByte;
-import org.opencv.core.MatOfPoint;
-import org.opencv.core.MatOfRect;
-import org.opencv.core.Point;
-import org.opencv.core.Rect;
-import org.opencv.core.Scalar;
-import org.opencv.core.Size;
-import org.opencv.imgcodecs.Imgcodecs;
-import org.opencv.imgproc.Imgproc;
-import org.opencv.objdetect.CascadeClassifier;
-import org.opencv.objdetect.Objdetect;
 
 /**
  *
@@ -70,601 +34,68 @@ import org.opencv.objdetect.Objdetect;
  */
 public class MainForm extends javax.swing.JFrame {
 
-    // A timer for processing the video stream
-    private ScheduledExecutorService videoTimer;
-    // A timer for processing the drone movement
-    private ScheduledExecutorService droneTimer;
-    // Flag to change the buttons behavior
-    private boolean droneActive;
-    private boolean droneTracking;
-    // A flag to determinate if mouse was clicked in an area so we can select the color around that section
-    private boolean mouseClicked;
-    // Mouse coordinates
-    private int mx, my;
-    // Drone
-    private ARDrone drone;
-    // Current frame
-    BufferedImage currentFrame;
-    // Face size
-    private int absoluteFaceSize;
-    // OpenCV classifier for face detection
-    private final CascadeClassifier faceCascade;
-    // A flag to determinate if a tracked object exists on screen
-    private boolean objectDetected = false;
-    // The center of the currently tracked object
-    private Point trackedObject = new Point(0.0d, 0.0d);
-    // Predefined object to track
-    private TrackedObject objectColor = new TrackedObject(TrackedObjectColor.CUSTOM);
-    // 720p (HD) - 1280x720
-    // Left boundary
-    private final int MAX_LEFT = 427;//500;
-    // Right boundary
-    private final int MAX_RIGHT = 853;//700;
-    // Drone speed
-    private final int DRONE_SPEED = 10;
-    // PID Controller
-    private int center = 0;
-    private final int kp = 5, ki = 10, kd = 12;
-    //private int currentPos = center;
-    private double offset;
-    private double error, lastError, integral, derivative;
-    // Log file
-    private PrintWriter pw;
-    private StringBuilder sb = new StringBuilder();
+    // Drone Manager
+    private final DroneManager dm;
+    // Video Processor
+    private final VideoProcessor vp;
     // Charts
-    private PIDChart pidChartX;
+    private final PIDChart pidChartX;
+    private final PIDChart pidChartY;
 
     /**
      * Creates new form MainForm
+     *
+     * @param dm
      */
-    public MainForm() {
+    public MainForm(DroneManager dm) {
+        // Initialize components
         initComponents();
-        // Center
-        this.setLocationRelativeTo(null);
-        // Load the native OpenCV library
-        System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
-        // Init components
-        this.pidChartX = new PIDChart();
-        JPanel chartPanel = new ChartPanel(pidChartX.getChart(), true, true, true, true, true);
-        pidPanelX.add(chartPanel, new GridBagConstraints(0, 0, 1, 1, 1, 1, GridBagConstraints.FIRST_LINE_START, GridBagConstraints.BOTH, new Insets(0, 0, 5, 0), 0, 0));
 
-        droneActive = droneTracking = false;
-        faceCascade = new CascadeClassifier(getClass().getResource("/mx/iteso/msc/ms705080/togapp/resources/lbpcascade_frontalface.xml").getFile().substring(1).replace("/", "\\").replace("%20", " "));
-        System.out.println(getClass().getResource("/mx/iteso/msc/ms705080/togapp/resources/lbpcascade_frontalface.xml").getFile().substring(1).replace("/", "\\").replace("%20", " "));
-        absoluteFaceSize = 0;
+        // Init graphs
+        this.pidChartX = new PIDChart("logX.csv");
+        JPanel chartPanelX = new ChartPanel(pidChartX.getChart(), true, true, true, true, true);
+        pidPanelX.add(chartPanelX, new GridBagConstraints(0, 0, 1, 1, 1, 1, GridBagConstraints.FIRST_LINE_START, GridBagConstraints.BOTH, new Insets(0, 0, 5, 0), 0, 0));
+        this.pidChartY = new PIDChart("logY.csv");
+        JPanel chartPanelY = new ChartPanel(pidChartY.getChart(), true, true, true, true, true);
+        pidPanelY.add(chartPanelY, new GridBagConstraints(0, 0, 1, 1, 1, 1, GridBagConstraints.FIRST_LINE_START, GridBagConstraints.BOTH, new Insets(0, 0, 5, 0), 0, 0));
+
+        vp = new VideoProcessor(dm, cameraPanel.getWidth());
+        dm.setVideoProcessor(vp);
+        vp.setType(ProcessType.QR_DETECTION);
+
         // Update status bar & radio buttons
         slidersStateChanged(null);
         changeObjectPanelStatus(false);
-        // Initialize log
-        try {
-            pw = new PrintWriter(new File("log.csv"));
-            sb.append("Time,");
-            sb.append("Move,");
-            sb.append("CurPos,");
-            sb.append("Error,");
-            sb.append("Integral,");
-            sb.append("Derivative\n");
-        } catch (FileNotFoundException exc) {
-            System.exit(-1);
-        }
-        // Initialize PID Controller
-        center = cameraPanel.getWidth() / 2;
         // Connect to drone
-        try {
-            drone = new ARDrone();
-            System.out.println("Connect drone controller");
-            drone.setHorizontalCamera();
-            drone.setMaxAltitude(2000);
-            drone.setSpeed(DRONE_SPEED);
-            drone.getCommandManager().setOutdoor(false, false);
-            drone.start();
-            drone.getCommandManager().setVideoChannel(VideoChannel.HORI);
-            drone.getCommandManager().setVideoCodec(VideoCodec.H264_720P);
-            drone.getVideoManager().addImageListener((BufferedImage newImage) -> {
-                currentFrame = newImage;
-            });
-            // Grab a frame every 33 ms (30 frames/sec)
-            Runnable frameProcess = () -> {
-                BufferedImage imageToShow = processFrame();
-                cameraPanel.getGraphics().drawImage(imageToShow, 0, 0, 640, 360, null);
-            };
-            videoTimer = Executors.newSingleThreadScheduledExecutor();
-            videoTimer.scheduleAtFixedRate(frameProcess, 0, 66, TimeUnit.MILLISECONDS);
-            // If drone is active and tracking objects, send move commands every 500 ms
-            Runnable droneProcess;
-            droneProcess = () -> {
-                if (droneActive && droneTracking && objectDetected) {
-                    System.out.println("Trying to do something...");
+        this.dm = dm;
+        this.dm.addListener((List<BufferedImage> images) -> {
+            dmImageUpdated(images);
+        });
+        vp.addListener((int chMin1, int chMin2, int chMin3, int chMax1, int chMax2, int chMax3) -> {
+            vpChannelsUpdated(chMin1, chMin2, chMin3, chMax1, chMax2, chMax3);
+        });
+    }
 
-                    // PID
-                    // Normalize current position
-                    double curpos = 2.0d * trackedObject.x / (double) cameraPanel.getWidth() - 1.0d;
-                    offset = 0.0d - curpos;
-                    System.out.println("curpos: " + curpos);
-                    System.out.println("offset: " + offset);
-                    error = curpos - offset;
-                    integral += error;
-                    derivative -= lastError;
-                    double move = kp * error + ki * integral + kd * derivative;
-                    //labelMove.setText("Move: " + (kp * error + ki * integral + kd * derivative));
-                    lastError = error;
-                    sb.append(System.currentTimeMillis()).append(",");
-                    sb.append(curpos).append(",");
-                    sb.append(move).append(",");
-                    sb.append(error).append(",");
-                    sb.append(integral).append(",");
-                    sb.append(derivative).append("\n");
-                    pidChartX.setError(error);
-                    CommandManager cmd = drone.getCommandManager();
-                    if (move > 0) {
-                        cmd.spinRight((int) Math.abs(move * 0.1d)).doFor(10);
-                    } else {
-                        cmd.spinLeft((int) Math.abs(move * 0.1d)).doFor(10);
-                    }
-
-//                    if (trackedObject.x < MAX_LEFT) {
-//                        // Original (sticky)
-//                        //drone.spinRight();
-//                        CommandManager cmd = drone.getCommandManager();
-//                        // Second: constant values
-//                        cmd.spinRight(30).doFor(500);
-//                        //cmd.spinRight(DRONE_SPEED).doFor(500 - (int)(500 * trackedObject.x / MAX_LEFT));
-//                        //cmd.spinRight(DRONE_SPEED).doFor((long)miniPID.getOutput((float)trackedObject.x, 1280));
-//                        //System.out.println("Spin right: " + miniPID.getOutput((float)trackedObject.x, 1280));
-//                    }
-//                    else if (trackedObject.x > MAX_RIGHT) {
-//                        //drone.spinLeft();
-//                        CommandManager cmd = drone.getCommandManager();
-//                        // Second: constant values
-//                        cmd.spinLeft(30).doFor(500);
-//                        //cmd.spinLeft(DRONE_SPEED).doFor((int)(500 * (trackedObject.x - MAX_RIGHT) / (1280 - MAX_RIGHT)));
-//                        //cmd.spinLeft(DRONE_SPEED).doFor((long)miniPID.getOutput((float)trackedObject.x, 1280));
-//                        //System.out.println("Spin left: " + miniPID.getOutput((float)trackedObject.x, 1280));
-//                    }
-//                    else {
-//                        drone.hover();
-//                        System.out.println("No movement");
-//                    }
-                }
-            };
-            droneTimer = Executors.newSingleThreadScheduledExecutor();
-            droneTimer.scheduleAtFixedRate(droneProcess, 0, 500, TimeUnit.MILLISECONDS);
-        } catch (Exception exc) {
-            if (drone != null) {
-                drone.stop();
-            }
-            System.exit(-1);
+    private void dmImageUpdated(List<BufferedImage> images) {
+        cameraPanel.getGraphics().drawImage(images.get(0), 0, 0, 640, 360, null);
+        if (images.size() > 1) {
+            hsvPanel.getGraphics().drawImage(images.get(1), 0, 0, 213, 120, null);
+        }
+        if (images.size() > 2) {
+            erodePanel.getGraphics().drawImage(images.get(2), 0, 0, 213, 120, null);
+        }
+        if (images.size() > 3) {
+            dilatePanel.getGraphics().drawImage(images.get(3), 0, 0, 213, 120, null);
         }
     }
 
-    private Mat findAndDrawObjects(Mat maskedImage, Mat frame) {
-        return findAndDrawObjects(maskedImage, frame, new Scalar(250, 0, 0));
-    }
-
-    private Mat findAndDrawObjects(Mat maskedImage, Mat frame, Scalar color) {
-        // Init
-        List<MatOfPoint> contours = new ArrayList<>();
-        Mat hierarchy = new Mat();
-
-        // Find contours
-        Imgproc.findContours(maskedImage, contours, hierarchy, Imgproc.RETR_CCOMP, Imgproc.CHAIN_APPROX_SIMPLE);
-
-        // If any contour exist...
-        if (hierarchy.size().height > 0 && hierarchy.size().width > 0) {
-            // for each contour, draw a border
-            for (int idx = 0; idx >= 0; idx = (int) hierarchy.get(0, idx)[0]) {
-                Imgproc.drawContours(frame, contours, idx, color, 5);
-            }
-        }
-        return frame;
-    }
-
-    private BufferedImage mat2Image(Mat frame) {
-        // Create a temporary buffer
-        MatOfByte buffer = new MatOfByte();
-        // Encode the frame in the buffer, according to the PNG format
-        Imgcodecs.imencode(".png", frame, buffer);
-        // Build and return an Image created from the image encoded in the buffer
-        // Return new BufferedImage(new ByteArrayInputStream(buffer.toArray()));
-        BufferedImage img = null;
-        try {
-            img = ImageIO.read(new ByteArrayInputStream(buffer.toArray()));
-        } catch (Exception e) {
-            // log the error
-            System.err.println("Exception while converting frame: " + e);
-        }
-        return img;
-    }
-
-    private Mat image2Mat(BufferedImage frame) {
-        Mat result = new Mat(frame.getHeight(), frame.getWidth(), CvType.CV_8UC3);
-
-        DataBufferByte data = (DataBufferByte) frame.getRaster().getDataBuffer();
-        result.put(0, 0, data.getData());
-
-        return result;
-    }
-
-    public Point readQRCode(Mat frame) {
-        BufferedImage image = mat2Image(frame);
-        BinaryBitmap bitmap;
-        Map hintMap = new HashMap();
-
-        hintMap.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.L);
-
-        int[] pixels = image.getRGB(0, 0, image.getWidth(), image.getHeight(), null, 0, image.getWidth());
-        RGBLuminanceSource source = new RGBLuminanceSource(image.getWidth(), image.getHeight(), pixels);
-        bitmap = new BinaryBitmap(new HybridBinarizer(source));
-
-        Result qrCodeResult;
-        try {
-            qrCodeResult = new MultiFormatReader().decode(bitmap, hintMap);
-            System.out.println("Result object created");
-        } catch (NotFoundException ex) {
-            return null;
-        }
-        ResultPoint[] points = qrCodeResult.getResultPoints();
-        System.out.println("Points received");
-        if (points.length != 3) {
-            return null;
-        } else {
-            Point p = new Point();
-            System.out.println("P0: " + points[0]);
-            System.out.println("P1: " + points[1]);
-            System.out.println("P2: " + points[2]);
-            p.x = (points[0].getX() + points[1].getX() + points[2].getX()) / 3;
-            p.y = (points[0].getY() + points[1].getY() + points[2].getY()) / 3;
-            return p;
-        }
-    }
-
-    private void drawCrosshairs(Mat frame, int x, int y) {
-        // Show crosshair
-        Imgproc.circle(frame, new Point(x, y), 20, new Scalar(0, 255, 0), 2);
-        Imgproc.line(frame, new Point(x, y), new Point(x, y - 25), new Scalar(0, 255, 0), 2);
-        Imgproc.line(frame, new Point(x, y), new Point(x, y + 25), new Scalar(0, 255, 0), 2);
-        Imgproc.line(frame, new Point(x, y), new Point(x - 25, y), new Scalar(0, 255, 0), 2);
-        Imgproc.line(frame, new Point(x, y), new Point(x + 25, y), new Scalar(0, 255, 0), 2);
-        Imgproc.putText(frame, "Tracking object at (" + x + "," + y + ")", new Point(x, y), 1, 1, new Scalar(255, 0, 0), 2);
-    }
-
-    private void processFaces(Mat frame) {
-        MatOfRect faces = new MatOfRect();
-        Mat grayFrame = new Mat();
-
-        // convert the frame in gray scale
-        Imgproc.cvtColor(frame, grayFrame, Imgproc.COLOR_BGR2GRAY);
-        // equalize the frame histogram to improve the result
-        Imgproc.equalizeHist(grayFrame, grayFrame);
-
-        // compute minimum face size (20% of the frame height, in our case)
-        if (this.absoluteFaceSize == 0) {
-            int height = grayFrame.rows();
-            if (Math.round(height * 0.2f) > 0) {
-                this.absoluteFaceSize = Math.round(height * 0.2f);
-            }
-        }
-
-        // detect faces
-        this.faceCascade.detectMultiScale(grayFrame, faces, 1.1, 2, Objdetect.CASCADE_SCALE_IMAGE, new Size(
-                this.absoluteFaceSize, this.absoluteFaceSize), new Size());
-
-        // each rectangle in faces is a face: draw them!
-        Rect[] facesArray = faces.toArray();
-        for (Rect face : facesArray) {
-            Imgproc.rectangle(frame, face.tl(), face.br(), new Scalar(0, 255, 0, 255), 3);
-        }
-        // Get the first face and use it as a tracking object
-        objectDetected = false;
-        if (facesArray.length > 0) {
-            objectDetected = true;
-            trackedObject.x = facesArray[0].x + facesArray[0].width / 2;
-            trackedObject.y = facesArray[0].y + facesArray[0].height / 2;
-            drawCrosshairs(frame, (int) trackedObject.x, (int) trackedObject.y);
-        }
-    }
-
-    private void processQr(Mat frame) {
-        Mat grayFrame = new Mat();
-        Mat blurredImage = new Mat();
-        Mat binarizedImage = new Mat();
-
-        // convert the frame in gray scale
-        Imgproc.cvtColor(frame, grayFrame, Imgproc.COLOR_BGR2GRAY);
-        // equalize the frame histogram to improve the result
-        Imgproc.equalizeHist(grayFrame, grayFrame);
-        //Imgproc.GaussianBlur(grayFrame, blurredImage, new Size(5, 5), 0);
-        Imgproc.GaussianBlur(grayFrame, blurredImage, new Size(5, 5), 0);
-        hsvPanel.getGraphics().drawImage(this.mat2Image(blurredImage), 0, 0, 213, 120, null);
-        //Imgproc.threshold(blurredImage, binarizedImage, 90, 255, Imgproc.THRESH_BINARY);
-        Imgproc.threshold(blurredImage, binarizedImage, 90, 255, Imgproc.THRESH_BINARY + Imgproc.THRESH_OTSU);
-        erodePanel.getGraphics().drawImage(this.mat2Image(binarizedImage), 0, 0, 213, 120, null);
-
-        Point qrCenter = readQRCode(binarizedImage);
-
-        // If we have a point (center), use it as a tracking object
-        objectDetected = false;
-        if (qrCenter != null) {
-            objectDetected = true;
-            trackedObject = qrCenter;
-            drawCrosshairs(frame, (int) trackedObject.x, (int) trackedObject.y);
-        }
-    }
-
-    private void processHsv(Mat frame) {
-        // Init
-        Mat blurredImage = new Mat();
-        Mat hsvImage = new Mat();
-        Mat mask = new Mat();
-        Mat morphOutput = new Mat();
-
-        // Remove some noise
-        Imgproc.blur(frame, blurredImage, new Size(7, 7));
-
-        // Convert the frame to HSV
-        Imgproc.cvtColor(blurredImage, hsvImage, Imgproc.COLOR_BGR2HSV);
-        hsvPanel.getGraphics().drawImage(this.mat2Image(hsvImage), 0, 0, 213, 120, null);
-
-        // Get color of current coordinates
-        if (mouseClicked) {
-            try {
-                int hmin = 180, smin = 255, vmin = 255;
-                int hmax = 0, smax = 0, vmax = 0;
-
-                for (int i = mx - 50; i < mx + 50; i++) {
-                    for (int j = my - 50; j < my + 50; j++) {
-                        double[] hsv = hsvImage.get(j, i);
-                        hmin = (int) (hsv[0] < hmin ? hsv[0] : hmin);
-                        hmax = (int) (hsv[0] > hmax ? hsv[0] : hmax);
-                        smin = (int) (hsv[1] < smin ? hsv[1] : smin);
-                        smax = (int) (hsv[1] > smax ? hsv[1] : smax);
-                        vmin = (int) (hsv[2] < vmin ? hsv[2] : vmin);
-                        vmax = (int) (hsv[2] > vmax ? hsv[2] : vmax);
-                    }
-                }
-                hueMinSlider.setValue(hmin);
-                hueMaxSlider.setValue(hmax);
-                saturationMinSlider.setValue(smin);
-                saturationMaxSlider.setValue(smax);
-                valueMinSlider.setValue(vmin);
-                valueMaxSlider.setValue(vmax);
-                Imgproc.rectangle(frame, new Point(mx - 50, my - 50), new Point(mx + 50, my + 50), new Scalar(255, 0, 255), 4);
-            } catch (Exception ex) {
-
-            } finally {
-                mouseClicked = false;
-            }
-        }
-
-        // Get thresholding values from the UI
-        // Remember: H ranges 0-180, S and V range 0-255
-        Scalar minValues = new Scalar(this.hueMinSlider.getValue(), this.saturationMinSlider.getValue(), this.valueMinSlider.getValue());
-        Scalar maxValues = new Scalar(this.hueMaxSlider.getValue(), this.saturationMaxSlider.getValue(), this.valueMaxSlider.getValue());
-
-        // Threshold HSV image to select object
-        Core.inRange(hsvImage, minValues, maxValues, mask);
-
-        // Morphological operators
-        // Dilate with large element, erode with small ones
-        Mat dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(24, 24));
-        Mat erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(12, 12));
-
-        Imgproc.erode(mask, morphOutput, erodeElement);
-        Imgproc.erode(mask, morphOutput, erodeElement);
-        // Show the partial output
-        erodePanel.getGraphics().drawImage(this.mat2Image(morphOutput), 0, 0, 213, 120, null);
-
-        Imgproc.dilate(mask, morphOutput, dilateElement);
-        Imgproc.dilate(mask, morphOutput, dilateElement);
-        // Show the partial output
-        dilatePanel.getGraphics().drawImage(this.mat2Image(morphOutput), 0, 0, 213, 120, null);
-
-        // Find the object(s) contours and show them
-        frame = this.findAndDrawObjects(morphOutput, frame);
-
-        // Calculate centers
-        Mat temp = new Mat();
-        morphOutput.copyTo(temp);
-        List<MatOfPoint> contours = new ArrayList<>();
-        Imgproc.findContours(temp, contours, new Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
-        objectDetected = false;
-        for (int i = 0; i < contours.size(); i++) {
-            Rect objectBoundingRectangle = Imgproc.boundingRect(contours.get(i));
-            int x = objectBoundingRectangle.x + objectBoundingRectangle.width / 2;
-            int y = objectBoundingRectangle.y + objectBoundingRectangle.height / 2;
-            if (i == 0) {
-                objectDetected = true;
-                trackedObject.x = x;
-                trackedObject.y = y;
-                drawCrosshairs(frame, x, y);
-            }
-        }
-    }
-
-    private void processRgb(Mat frame) {
-        // Init
-        Mat blurredImage = new Mat();
-        Mat rgbImage = new Mat();
-        Mat mask = new Mat();
-        Mat morphOutput = new Mat();
-
-        // Remove some noise
-        Imgproc.blur(frame, blurredImage, new Size(7, 7));
-
-        // Convert the frame to BGRA
-        Imgproc.cvtColor(blurredImage, rgbImage, Imgproc.COLOR_BGR2BGRA);
-        hsvPanel.getGraphics().drawImage(this.mat2Image(rgbImage), 0, 0, 213, 120, null);
-
-        // Get color of current coordinates
-        if (mouseClicked) {
-            try {
-                int hmin = 180, smin = 255, vmin = 255;
-                int hmax = 0, smax = 0, vmax = 0;
-
-                for (int i = mx - 50; i < mx + 50; i++) {
-                    for (int j = my - 50; j < my + 50; j++) {
-                        double[] hsv = rgbImage.get(j, i);
-                        hmin = (int) (hsv[0] < hmin ? hsv[0] : hmin);
-                        hmax = (int) (hsv[0] > hmax ? hsv[0] : hmax);
-                        smin = (int) (hsv[1] < smin ? hsv[1] : smin);
-                        smax = (int) (hsv[1] > smax ? hsv[1] : smax);
-                        vmin = (int) (hsv[2] < vmin ? hsv[2] : vmin);
-                        vmax = (int) (hsv[2] > vmax ? hsv[2] : vmax);
-                    }
-                }
-                hueMinSlider.setValue(hmin);
-                hueMaxSlider.setValue(hmax);
-                saturationMinSlider.setValue(smin);
-                saturationMaxSlider.setValue(smax);
-                valueMinSlider.setValue(vmin);
-                valueMaxSlider.setValue(vmax);
-                Imgproc.rectangle(frame, new Point(mx - 50, my - 50), new Point(mx + 50, my + 50), new Scalar(255, 0, 255), 4);
-            } catch (Exception ex) {
-
-            } finally {
-                mouseClicked = false;
-            }
-        }
-
-        // Get thresholding values from the UI
-        // Remember: H ranges 0-180, S and V range 0-255
-        Scalar minValues = new Scalar(this.hueMinSlider.getValue(), this.saturationMinSlider.getValue(), this.valueMinSlider.getValue());
-        Scalar maxValues = new Scalar(this.hueMaxSlider.getValue(), this.saturationMaxSlider.getValue(), this.valueMaxSlider.getValue());
-
-        // Threshold HSV image to select object
-        Core.inRange(rgbImage, minValues, maxValues, mask);
-
-        // Morphological operators
-        // Dilate with large element, erode with small ones
-        Mat dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(24, 24));
-        Mat erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(12, 12));
-
-        Imgproc.erode(mask, morphOutput, erodeElement);
-        Imgproc.erode(mask, morphOutput, erodeElement);
-        // Show the partial output
-        erodePanel.getGraphics().drawImage(this.mat2Image(morphOutput), 0, 0, 213, 120, null);
-
-        Imgproc.dilate(mask, morphOutput, dilateElement);
-        Imgproc.dilate(mask, morphOutput, dilateElement);
-        // Show the partial output
-        dilatePanel.getGraphics().drawImage(this.mat2Image(morphOutput), 0, 0, 213, 120, null);
-
-        // Find the object(s) contours and show them
-        frame = this.findAndDrawObjects(morphOutput, frame);
-
-        // Calculate centers
-        Mat temp = new Mat();
-        morphOutput.copyTo(temp);
-        List<MatOfPoint> contours = new ArrayList<>();
-        Imgproc.findContours(temp, contours, new Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
-        objectDetected = false;
-        for (int i = 0; i < contours.size(); i++) {
-            Rect objectBoundingRectangle = Imgproc.boundingRect(contours.get(i));
-            int x = objectBoundingRectangle.x + objectBoundingRectangle.width / 2;
-            int y = objectBoundingRectangle.y + objectBoundingRectangle.height / 2;
-            if (i == 0) {
-                objectDetected = true;
-                trackedObject.x = x;
-                trackedObject.y = y;
-                drawCrosshairs(frame, x, y);
-            }
-        }
-    }
-
-    private void processHsvObjects(Mat frame) {
-        // Init
-        Mat blurredImage = new Mat();
-        Mat hsvImage = new Mat();
-        Mat mask = new Mat();
-        Mat morphOutput = new Mat();
-
-        // Remove some noise
-        Imgproc.blur(frame, blurredImage, new Size(7, 7));
-
-        // Convert the frame to HSV
-        Imgproc.cvtColor(blurredImage, hsvImage, Imgproc.COLOR_BGR2HSV);
-        hsvPanel.getGraphics().drawImage(this.mat2Image(hsvImage), 0, 0, 213, 120, null);
-
-        // Threshold HSV image to select object
-        Core.inRange(hsvImage, objectColor.getHsvMin(), objectColor.getHsvMax(), mask);
-
-        // Morphological operators
-        // Dilate with large element, erode with small ones
-        Mat dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(24, 24));
-        Mat erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(12, 12));
-
-        Imgproc.erode(mask, morphOutput, erodeElement);
-        Imgproc.erode(mask, morphOutput, erodeElement);
-        // Show the partial output
-        erodePanel.getGraphics().drawImage(this.mat2Image(morphOutput), 0, 0, 213, 120, null);
-
-        Imgproc.dilate(mask, morphOutput, dilateElement);
-        Imgproc.dilate(mask, morphOutput, dilateElement);
-        // Show the partial output
-        dilatePanel.getGraphics().drawImage(this.mat2Image(morphOutput), 0, 0, 213, 120, null);
-
-        // Find the object(s) contours and show them
-        frame = this.findAndDrawObjects(morphOutput, frame, objectColor.getColor());
-
-        // Calculate centers
-        Mat temp = new Mat();
-        morphOutput.copyTo(temp);
-        List<MatOfPoint> contours = new ArrayList<>();
-        Imgproc.findContours(temp, contours, new Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
-        objectDetected = false;
-        for (int i = 0; i < contours.size(); i++) {
-            Rect objectBoundingRectangle = Imgproc.boundingRect(contours.get(i));
-            int x = objectBoundingRectangle.x + objectBoundingRectangle.width / 2;
-            int y = objectBoundingRectangle.y + objectBoundingRectangle.height / 2;
-            if (i == 0) {
-                objectDetected = true;
-                trackedObject.x = x;
-                trackedObject.y = y;
-                drawCrosshairs(frame, x, y);
-            }
-        }
-    }
-
-    private BufferedImage processFrame() {
-        // Init everything
-        BufferedImage imageToShow = null;
-        Mat frame;
-
-        // Check if the capture is open
-        if (currentFrame != null) {
-            try {
-                // Read the current frame
-                frame = image2Mat(currentFrame);
-                // Flip image for easy object manipulation
-                //Core.flip(frame, frame, 1);
-                if (hsvColorDetectionRadioButton.isSelected()) {
-                    processHsv(frame);
-                }
-                if (rgbColorDetectionRadioButton.isSelected()) {
-                    processRgb(frame);
-                }
-                if (faceDetectionRadioButton.isSelected()) {
-                    processFaces(frame);
-                }
-                if (preconfigDetectionRadioButton.isSelected()) {
-                    processHsvObjects(frame);
-                }
-                if (qrDetectionRadioButton.isSelected()) {
-                    processQr(frame);
-                }
-                // If the drone is in tracking mode, then draw boundaries
-                if (droneTracking && frame != null) {
-                    Imgproc.rectangle(frame, new Point(0, 0), new Point(MAX_LEFT, 720), new Scalar(255, 0, 255), 5);
-                    Imgproc.rectangle(frame, new Point(MAX_RIGHT, 0), new Point(1280, 720), new Scalar(255, 0, 255), 5);
-                }
-                // convert the Mat object (OpenCV) to Image (Java AWT)
-                imageToShow = mat2Image(frame);
-            } catch (Exception e) {
-                // log the error
-                System.err.println("Exception during the frame elaboration: " + e);
-            }
-        }
-        return imageToShow;
+    private void vpChannelsUpdated(int chMin1, int chMin2, int chMin3, int chMax1, int chMax2, int chMax3) {
+        hueMinSlider.setValue(chMin1);
+        hueMaxSlider.setValue(chMax1);
+        saturationMinSlider.setValue(chMin2);
+        saturationMaxSlider.setValue(chMax2);
+        valueMinSlider.setValue(chMin3);
+        valueMaxSlider.setValue(chMax3);
     }
 
     /**
@@ -716,6 +147,11 @@ public class MainForm extends javax.swing.JFrame {
         setPreferredSize(new java.awt.Dimension(820, 700));
         setResizable(false);
         setSize(new java.awt.Dimension(820, 700));
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            public void windowClosing(java.awt.event.WindowEvent evt) {
+                formWindowClosing(evt);
+            }
+        });
         getContentPane().setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
         cameraPanel.setBorder(javax.swing.BorderFactory.createEtchedBorder(javax.swing.border.EtchedBorder.RAISED));
@@ -995,9 +431,7 @@ public class MainForm extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void cameraPanelMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_cameraPanelMouseClicked
-        mouseClicked = true;
-        mx = evt.getX() * 2;
-        my = evt.getY() * 2;
+        vp.MouseClicked(evt.getX() * 2, evt.getY() * 2);
     }//GEN-LAST:event_cameraPanelMouseClicked
 
     private void slidersStateChanged(javax.swing.event.ChangeEvent evt) {//GEN-FIRST:event_slidersStateChanged
@@ -1019,43 +453,45 @@ public class MainForm extends javax.swing.JFrame {
             valuesToPrint = "Pre-configured HSV object detection. Search for blue, green, yellow and red objects.";
         }
         statusLabel.setText(valuesToPrint);
+        vp.setChannelValues(hueMinSlider.getValue(), saturationMinSlider.getValue(), valueMinSlider.getValue(),
+                hueMaxSlider.getValue(), saturationMaxSlider.getValue(), valueMaxSlider.getValue());
     }//GEN-LAST:event_slidersStateChanged
 
     private void startDroneButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_startDroneButtonActionPerformed
-        if (!droneActive) {
-            drone.takeOff();
+        if (!dm.isDroneActive()) {
+            dm.takeOffDrone();
             startDroneButton.setText("Stop Drone");
-            drone.hover();
+            dm.hoverDrone();
         } else {
-            drone.landing();
+            dm.landDrone();
             startDroneButton.setText("Start Drone");
         }
-        droneActive = !droneActive;
+        dm.setDroneActive(!dm.isDroneActive());
     }//GEN-LAST:event_startDroneButtonActionPerformed
 
     private void startTrackingButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_startTrackingButtonActionPerformed
-        if (!droneTracking) {
+        if (!dm.isDroneTracking()) {
             startTrackingButton.setText("Stop Tracking");
         } else {
             startTrackingButton.setText("Start Tracking");
         }
-        droneTracking = !droneTracking;
+        dm.setDroneTracking(!dm.isDroneTracking());
     }//GEN-LAST:event_startTrackingButtonActionPerformed
 
     private void blueObjectColorRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_blueObjectColorRadioButtonActionPerformed
-        objectColor = new TrackedObject(TrackedObjectColor.BLUE);
+        vp.setTrackedObjectColor(new TrackedObject(TrackedObjectColor.BLUE));
     }//GEN-LAST:event_blueObjectColorRadioButtonActionPerformed
 
     private void greenObjectColorRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_greenObjectColorRadioButtonActionPerformed
-        objectColor = new TrackedObject(TrackedObjectColor.GREEN);
+        vp.setTrackedObjectColor(new TrackedObject(TrackedObjectColor.GREEN));
     }//GEN-LAST:event_greenObjectColorRadioButtonActionPerformed
 
     private void redObjectColorRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_redObjectColorRadioButtonActionPerformed
-        objectColor = new TrackedObject(TrackedObjectColor.RED);
+        vp.setTrackedObjectColor(new TrackedObject(TrackedObjectColor.RED));
     }//GEN-LAST:event_redObjectColorRadioButtonActionPerformed
 
     private void yellowObjectColorRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_yellowObjectColorRadioButtonActionPerformed
-        objectColor = new TrackedObject(TrackedObjectColor.YELLOW);
+        vp.setTrackedObjectColor(new TrackedObject(TrackedObjectColor.YELLOW));
     }//GEN-LAST:event_yellowObjectColorRadioButtonActionPerformed
 
     private void rgbColorDetectionRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_rgbColorDetectionRadioButtonActionPerformed
@@ -1063,6 +499,7 @@ public class MainForm extends javax.swing.JFrame {
         changeSliderType("RGB");
         slidersStateChanged(null);
         changeObjectPanelStatus(false);
+        vp.setType(ProcessType.COLOR_RGB);
     }//GEN-LAST:event_rgbColorDetectionRadioButtonActionPerformed
 
     private void hsvColorDetectionRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_hsvColorDetectionRadioButtonActionPerformed
@@ -1070,24 +507,28 @@ public class MainForm extends javax.swing.JFrame {
         changeSliderType("HSV");
         slidersStateChanged(null);
         changeObjectPanelStatus(false);
+        vp.setType(ProcessType.COLOR_HSV);
     }//GEN-LAST:event_hsvColorDetectionRadioButtonActionPerformed
 
     private void preconfigDetectionRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_preconfigDetectionRadioButtonActionPerformed
         changeSlidersStatus(false);
         slidersStateChanged(null);
         changeObjectPanelStatus(true);
+        vp.setType(ProcessType.PRECONFIG_HSV);
     }//GEN-LAST:event_preconfigDetectionRadioButtonActionPerformed
 
     private void faceDetectionRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_faceDetectionRadioButtonActionPerformed
         changeSlidersStatus(false);
         slidersStateChanged(null);
         changeObjectPanelStatus(false);
+        vp.setType(ProcessType.FACE_DETECTION);
     }//GEN-LAST:event_faceDetectionRadioButtonActionPerformed
 
     private void qrDetectionRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_qrDetectionRadioButtonActionPerformed
         changeSlidersStatus(false);
         slidersStateChanged(null);
         changeObjectPanelStatus(false);
+        vp.setType(ProcessType.QR_DETECTION);
     }//GEN-LAST:event_qrDetectionRadioButtonActionPerformed
 
     private void changeSlidersStatus(boolean status) {
@@ -1123,8 +564,12 @@ public class MainForm extends javax.swing.JFrame {
     }
 
     private void resetDroneButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_resetDroneButtonActionPerformed
-        drone.reset();
+        dm.resetDrone();
     }//GEN-LAST:event_resetDroneButtonActionPerformed
+
+    private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
+        dm.stopDrone();
+    }//GEN-LAST:event_formWindowClosing
 
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
