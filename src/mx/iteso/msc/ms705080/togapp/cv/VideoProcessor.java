@@ -63,7 +63,7 @@ public class VideoProcessor {
     // The center of the currently tracked object
     private Point trackedObject = new Point(0.0d, 0.0d);
     // Predefined object to track
-    private TrackedObject objectColor = new TrackedObject(TrackedObjectColor.CUSTOM);
+    private TrackedObject objectColor = new TrackedObject(TrackedObjectColor.YELLOW);
     // A flag to determinate if mouse was clicked in an area so we can select the color around that section
     private boolean mouseClicked;
     // Mouse coordinates
@@ -162,14 +162,18 @@ public class VideoProcessor {
         }
     }
 
-    private void processFaces(Mat frame) {
+    private List<BufferedImage> processFaces(Mat frame) {
         MatOfRect faces = new MatOfRect();
         Mat grayFrame = new Mat();
+        List<BufferedImage> results = new ArrayList<>();
+        BufferedImage grayImage, equilizedImage;
 
         // convert the frame in gray scale
         Imgproc.cvtColor(frame, grayFrame, Imgproc.COLOR_BGR2GRAY);
+        grayImage = Util.Mat2Image(grayFrame);
         // equalize the frame histogram to improve the result
         Imgproc.equalizeHist(grayFrame, grayFrame);
+        equilizedImage = Util.Mat2Image(grayFrame);
 
         // compute minimum face size (20% of the frame height, in our case)
         if (this.absoluteFaceSize == 0) {
@@ -196,25 +200,32 @@ public class VideoProcessor {
             trackedObject.y = facesArray[0].y + facesArray[0].height / 2;
             Util.DrawCrosshairs(frame, (int) trackedObject.x, (int) trackedObject.y);
         }
+        results.add(Util.Mat2Image(frame));
+        results.add(grayImage);
+        results.add(equilizedImage);
+        return results;
     }
 
-    private void processQr(Mat frame) {
+    private List<BufferedImage> processQr(Mat frame) {
         Mat grayFrame = new Mat();
-        Mat blurredImage = new Mat();
-        Mat binarizedImage = new Mat();
+        Mat blurredFrame = new Mat();
+        Mat binarizedFrame = new Mat();
+        List<BufferedImage> results = new ArrayList<>();
+        BufferedImage grayImage, blurredImage, binarizedImage;
 
         // convert the frame in gray scale
         Imgproc.cvtColor(frame, grayFrame, Imgproc.COLOR_BGR2GRAY);
         // equalize the frame histogram to improve the result
         Imgproc.equalizeHist(grayFrame, grayFrame);
-        //Imgproc.GaussianBlur(grayFrame, blurredImage, new Size(5, 5), 0);
-        Imgproc.GaussianBlur(grayFrame, blurredImage, new Size(5, 5), 0);
-        /////hsvPanel.getGraphics().drawImage(Util.Mat2Image(blurredImage), 0, 0, 213, 120, null);
-        //Imgproc.threshold(blurredImage, binarizedImage, 90, 255, Imgproc.THRESH_BINARY);
-        Imgproc.threshold(blurredImage, binarizedImage, 90, 255, Imgproc.THRESH_BINARY + Imgproc.THRESH_OTSU);
-        /////erodePanel.getGraphics().drawImage(Util.Mat2Image(binarizedImage), 0, 0, 213, 120, null);
+        grayImage = Util.Mat2Image(grayFrame);
+        // Gaussian Blur
+        Imgproc.GaussianBlur(grayFrame, blurredFrame, new Size(5, 5), 0);
+        blurredImage = Util.Mat2Image(blurredFrame);
+        // Threshold
+        Imgproc.threshold(blurredFrame, binarizedFrame, 90, 255, Imgproc.THRESH_BINARY + Imgproc.THRESH_OTSU);
+        binarizedImage = Util.Mat2Image(binarizedFrame);
 
-        Point qrCenter = readQRCode(binarizedImage);
+        Point qrCenter = readQRCode(binarizedFrame);
 
         // If we have a point (center), use it as a tracking object
         objectDetected = false;
@@ -223,6 +234,11 @@ public class VideoProcessor {
             trackedObject = qrCenter;
             Util.DrawCrosshairs(frame, (int) trackedObject.x, (int) trackedObject.y);
         }
+        results.add(Util.Mat2Image(frame));
+        results.add(grayImage);
+        results.add(blurredImage);
+        results.add(binarizedImage);
+        return results;
     }
 
     private List<BufferedImage> processHsv(Mat frame) {
@@ -400,19 +416,20 @@ public class VideoProcessor {
         return results;
     }
 
-    private void processHsvObjects(Mat frame) {
+    private List<BufferedImage> processHsvObjects(Mat frame) {
         // Init
         Mat blurredImage = new Mat();
         Mat hsvImage = new Mat();
         Mat mask = new Mat();
         Mat morphOutput = new Mat();
+        List<BufferedImage> results = new ArrayList<>();
+        BufferedImage eroredImage, dilatedImage;
 
         // Remove some noise
         Imgproc.blur(frame, blurredImage, new Size(7, 7));
 
         // Convert the frame to HSV
         Imgproc.cvtColor(blurredImage, hsvImage, Imgproc.COLOR_BGR2HSV);
-        /////hsvPanel.getGraphics().drawImage(this.mat2Image(hsvImage), 0, 0, 213, 120, null);
 
         // Threshold HSV image to select object
         Core.inRange(hsvImage, objectColor.getHsvMin(), objectColor.getHsvMax(), mask);
@@ -423,17 +440,12 @@ public class VideoProcessor {
         Mat erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(12, 12));
 
         Imgproc.erode(mask, morphOutput, erodeElement);
-        Imgproc.erode(mask, morphOutput, erodeElement);
-        // Show the partial output
-        /////erodePanel.getGraphics().drawImage(this.mat2Image(morphOutput), 0, 0, 213, 120, null);
-
+        eroredImage = Util.Mat2Image(morphOutput);
         Imgproc.dilate(mask, morphOutput, dilateElement);
-        Imgproc.dilate(mask, morphOutput, dilateElement);
-        // Show the partial output
-        /////dilatePanel.getGraphics().drawImage(this.mat2Image(morphOutput), 0, 0, 213, 120, null);
+        dilatedImage = Util.Mat2Image(morphOutput);
 
         // Find the object(s) contours and show them
-        frame = this.findAndDrawObjects(morphOutput, frame, objectColor.getColor());
+        frame = this.findAndDrawObjects(morphOutput, frame);
 
         // Calculate centers
         Mat temp = new Mat();
@@ -452,6 +464,11 @@ public class VideoProcessor {
                 Util.DrawCrosshairs(frame, x, y);
             }
         }
+        results.add(Util.Mat2Image(frame));
+        results.add(Util.Mat2Image(hsvImage));
+        results.add(eroredImage);
+        results.add(dilatedImage);
+        return results;
     }
 
     public List<BufferedImage> ProcessFrame(BufferedImage currentFrame) {
@@ -475,13 +492,13 @@ public class VideoProcessor {
                         results = processHsv(frame);
                         break;
                     case PRECONFIG_HSV:
-                        //results = processHsvObjects(frame);
+                        results = processHsvObjects(frame);
                         break;
                     case FACE_DETECTION:
-                        //results = processFaces(frame);
+                        results = processFaces(frame);
                         break;
                     case QR_DETECTION:
-                        //results = processQr(frame);
+                        results = processQr(frame);
                         break;
                 }
                 // If the drone is in tracking mode, then draw boundaries

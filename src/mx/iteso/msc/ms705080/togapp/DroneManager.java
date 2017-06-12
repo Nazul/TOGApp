@@ -22,6 +22,9 @@ import java.awt.image.BufferedImage;
 import de.yadrone.base.video.ImageListener;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import mx.iteso.msc.ms705080.togapp.cv.ProcessedImagesListener;
 import mx.iteso.msc.ms705080.togapp.cv.VideoProcessor;
 
@@ -38,8 +41,26 @@ public class DroneManager implements ImageListener {
     // Flags
     private boolean droneActive = false;
     private boolean droneTracking = false;
+    // Current frame
+    BufferedImage currentFrame;
+    // A timer for processing the video stream
+    private final ScheduledExecutorService videoTimer;
     // Video processing
     private VideoProcessor videoProcessor;
+
+    private class videoUpdater implements Runnable {
+
+        @Override
+        public void run() {
+            if (currentFrame != null) {
+                List<BufferedImage> results;
+                results = videoProcessor.ProcessFrame(currentFrame);
+                listeners.forEach((listener) -> {
+                    listener.imageUpdated(results);
+                });
+            }
+        }
+    }
 
     public DroneManager() {
         // Initialize drone
@@ -52,6 +73,10 @@ public class DroneManager implements ImageListener {
         drone.getCommandManager().setVideoCodec(VideoCodec.H264_720P);
         drone.getVideoManager().addImageListener(this);
         drone.start();
+
+        // Grab a frame every 33 ms (30 frames/sec)
+        videoTimer = Executors.newSingleThreadScheduledExecutor();
+        videoTimer.scheduleAtFixedRate(new videoUpdater(), 0, 66, TimeUnit.MILLISECONDS);
     }
 
     public void addListener(ProcessedImagesListener listener) {
@@ -88,21 +113,9 @@ public class DroneManager implements ImageListener {
         }
     }
 
-    private static boolean temp = false;
-
     @Override
     public void imageUpdated(BufferedImage newImage) {
-        if (temp) {
-            List<BufferedImage> results;
-            //System.out.println("New frame adquired - " + System.currentTimeMillis());
-            results = videoProcessor.ProcessFrame(newImage);
-            listeners.forEach((listener) -> {
-                listener.imageUpdated(results);
-            });
-        }
-        else {
-            temp = !temp;
-        }
+        currentFrame = newImage;
     }
 
     /**

@@ -23,7 +23,6 @@ import javax.swing.JPanel;
 import mx.iteso.msc.ms705080.togapp.DroneManager;
 import mx.iteso.msc.ms705080.togapp.TrackedObject;
 import mx.iteso.msc.ms705080.togapp.TrackedObjectColor;
-import mx.iteso.msc.ms705080.togapp.cv.ChannelValuesListener;
 import mx.iteso.msc.ms705080.togapp.cv.VideoProcessor;
 import mx.iteso.msc.ms705080.togapp.cv.VideoProcessor.ProcessType;
 import org.jfree.chart.ChartPanel;
@@ -61,7 +60,7 @@ public class MainForm extends javax.swing.JFrame {
 
         vp = new VideoProcessor(dm, cameraPanel.getWidth());
         dm.setVideoProcessor(vp);
-        vp.setType(ProcessType.QR_DETECTION);
+        vp.setType(ProcessType.COLOR_HSV);
 
         // Update status bar & radio buttons
         slidersStateChanged(null);
@@ -107,11 +106,20 @@ public class MainForm extends javax.swing.JFrame {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
+        detectionTypeButtonGroup = new javax.swing.ButtonGroup();
+        objectColorButtonGroup = new javax.swing.ButtonGroup();
         cameraPanel = new javax.swing.JPanel();
         processPanel = new javax.swing.JPanel();
         hsvPanel = new javax.swing.JPanel();
         erodePanel = new javax.swing.JPanel();
         dilatePanel = new javax.swing.JPanel();
+        chartsPanel = new javax.swing.JPanel();
+        pidPanelX = new javax.swing.JPanel();
+        pidPanelY = new javax.swing.JPanel();
+        pidPanelZ = new javax.swing.JPanel();
+        startDroneButton = new javax.swing.JButton();
+        startTrackingButton = new javax.swing.JButton();
+        resetDroneButton = new javax.swing.JButton();
         huePanel = new javax.swing.JPanel();
         hueMinSlider = new javax.swing.JSlider();
         hueMaxSlider = new javax.swing.JSlider();
@@ -121,25 +129,18 @@ public class MainForm extends javax.swing.JFrame {
         valuePanel = new javax.swing.JPanel();
         valueMinSlider = new javax.swing.JSlider();
         valueMaxSlider = new javax.swing.JSlider();
-        startDroneButton = new javax.swing.JButton();
-        startTrackingButton = new javax.swing.JButton();
-        statusLabel = new javax.swing.JLabel();
-        jPanel1 = new javax.swing.JPanel();
+        objectColorPanel = new javax.swing.JPanel();
         blueObjectColorRadioButton = new javax.swing.JRadioButton();
         greenObjectColorRadioButton = new javax.swing.JRadioButton();
         redObjectColorRadioButton = new javax.swing.JRadioButton();
         yellowObjectColorRadioButton = new javax.swing.JRadioButton();
-        jPanel2 = new javax.swing.JPanel();
+        detectionTypePanel = new javax.swing.JPanel();
         rgbColorDetectionRadioButton = new javax.swing.JRadioButton();
         hsvColorDetectionRadioButton = new javax.swing.JRadioButton();
         preconfigDetectionRadioButton = new javax.swing.JRadioButton();
         faceDetectionRadioButton = new javax.swing.JRadioButton();
         qrDetectionRadioButton = new javax.swing.JRadioButton();
-        resetDroneButton = new javax.swing.JButton();
-        processPanel1 = new javax.swing.JPanel();
-        pidPanelX = new javax.swing.JPanel();
-        pidPanelY = new javax.swing.JPanel();
-        pidPanelZ = new javax.swing.JPanel();
+        statusLabel = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("UAV Ground Control Station");
@@ -224,6 +225,47 @@ public class MainForm extends javax.swing.JFrame {
 
         getContentPane().add(processPanel, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 370, 640, 120));
 
+        chartsPanel.setBorder(javax.swing.BorderFactory.createEtchedBorder(javax.swing.border.EtchedBorder.RAISED));
+        chartsPanel.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
+
+        pidPanelX.setBorder(javax.swing.BorderFactory.createEtchedBorder());
+        pidPanelX.setLayout(new java.awt.GridBagLayout());
+        chartsPanel.add(pidPanelX, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 213, 100));
+
+        pidPanelY.setBorder(javax.swing.BorderFactory.createEtchedBorder());
+        pidPanelY.setLayout(new java.awt.GridBagLayout());
+        chartsPanel.add(pidPanelY, new org.netbeans.lib.awtextra.AbsoluteConstraints(214, 0, 213, 100));
+
+        pidPanelZ.setBorder(javax.swing.BorderFactory.createEtchedBorder());
+        pidPanelZ.setLayout(new java.awt.GridBagLayout());
+        chartsPanel.add(pidPanelZ, new org.netbeans.lib.awtextra.AbsoluteConstraints(427, 0, 213, 100));
+
+        getContentPane().add(chartsPanel, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 490, 640, 100));
+
+        startDroneButton.setText("Start Drone");
+        startDroneButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                startDroneButtonActionPerformed(evt);
+            }
+        });
+        getContentPane().add(startDroneButton, new org.netbeans.lib.awtextra.AbsoluteConstraints(660, 10, 140, -1));
+
+        startTrackingButton.setText("Start Tracking");
+        startTrackingButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                startTrackingButtonActionPerformed(evt);
+            }
+        });
+        getContentPane().add(startTrackingButton, new org.netbeans.lib.awtextra.AbsoluteConstraints(660, 40, 140, -1));
+
+        resetDroneButton.setText("Reset Drone");
+        resetDroneButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                resetDroneButtonActionPerformed(evt);
+            }
+        });
+        getContentPane().add(resetDroneButton, new org.netbeans.lib.awtextra.AbsoluteConstraints(660, 70, 140, -1));
+
         huePanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Hue"));
         huePanel.setPreferredSize(new java.awt.Dimension(300, 60));
 
@@ -299,52 +341,36 @@ public class MainForm extends javax.swing.JFrame {
 
         getContentPane().add(valuePanel, new org.netbeans.lib.awtextra.AbsoluteConstraints(660, 280, 140, 90));
 
-        startDroneButton.setText("Start Drone");
-        startDroneButton.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                startDroneButtonActionPerformed(evt);
-            }
-        });
-        getContentPane().add(startDroneButton, new org.netbeans.lib.awtextra.AbsoluteConstraints(660, 10, 140, -1));
+        objectColorPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Object Color"));
 
-        startTrackingButton.setText("Start Tracking");
-        startTrackingButton.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                startTrackingButtonActionPerformed(evt);
-            }
-        });
-        getContentPane().add(startTrackingButton, new org.netbeans.lib.awtextra.AbsoluteConstraints(660, 40, 140, -1));
-
-        statusLabel.setText("[statusLabel]");
-        statusLabel.setBorder(javax.swing.BorderFactory.createBevelBorder(javax.swing.border.BevelBorder.LOWERED));
-        getContentPane().add(statusLabel, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 650, 800, 20));
-
-        jPanel1.setBorder(javax.swing.BorderFactory.createTitledBorder("Object Color"));
-
+        objectColorButtonGroup.add(blueObjectColorRadioButton);
         blueObjectColorRadioButton.setText("Blue");
         blueObjectColorRadioButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 blueObjectColorRadioButtonActionPerformed(evt);
             }
         });
-        jPanel1.add(blueObjectColorRadioButton);
+        objectColorPanel.add(blueObjectColorRadioButton);
 
+        objectColorButtonGroup.add(greenObjectColorRadioButton);
         greenObjectColorRadioButton.setText("Green");
         greenObjectColorRadioButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 greenObjectColorRadioButtonActionPerformed(evt);
             }
         });
-        jPanel1.add(greenObjectColorRadioButton);
+        objectColorPanel.add(greenObjectColorRadioButton);
 
+        objectColorButtonGroup.add(redObjectColorRadioButton);
         redObjectColorRadioButton.setText("Red");
         redObjectColorRadioButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 redObjectColorRadioButtonActionPerformed(evt);
             }
         });
-        jPanel1.add(redObjectColorRadioButton);
+        objectColorPanel.add(redObjectColorRadioButton);
 
+        objectColorButtonGroup.add(yellowObjectColorRadioButton);
         yellowObjectColorRadioButton.setSelected(true);
         yellowObjectColorRadioButton.setText("Yellow");
         yellowObjectColorRadioButton.addActionListener(new java.awt.event.ActionListener() {
@@ -352,20 +378,23 @@ public class MainForm extends javax.swing.JFrame {
                 yellowObjectColorRadioButtonActionPerformed(evt);
             }
         });
-        jPanel1.add(yellowObjectColorRadioButton);
+        objectColorPanel.add(yellowObjectColorRadioButton);
 
-        getContentPane().add(jPanel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(660, 370, 140, 80));
+        getContentPane().add(objectColorPanel, new org.netbeans.lib.awtextra.AbsoluteConstraints(660, 370, 140, 80));
 
-        jPanel2.setBorder(javax.swing.BorderFactory.createTitledBorder("Detection Type"));
+        detectionTypePanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Detection Type"));
 
+        detectionTypeButtonGroup.add(rgbColorDetectionRadioButton);
         rgbColorDetectionRadioButton.setText("Color Detection (RGB)");
         rgbColorDetectionRadioButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 rgbColorDetectionRadioButtonActionPerformed(evt);
             }
         });
-        jPanel2.add(rgbColorDetectionRadioButton);
+        detectionTypePanel.add(rgbColorDetectionRadioButton);
 
+        detectionTypeButtonGroup.add(hsvColorDetectionRadioButton);
+        hsvColorDetectionRadioButton.setSelected(true);
         hsvColorDetectionRadioButton.setText("Color Detection (HSV)");
         hsvColorDetectionRadioButton.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
         hsvColorDetectionRadioButton.addActionListener(new java.awt.event.ActionListener() {
@@ -373,59 +402,40 @@ public class MainForm extends javax.swing.JFrame {
                 hsvColorDetectionRadioButtonActionPerformed(evt);
             }
         });
-        jPanel2.add(hsvColorDetectionRadioButton);
+        detectionTypePanel.add(hsvColorDetectionRadioButton);
 
+        detectionTypeButtonGroup.add(preconfigDetectionRadioButton);
         preconfigDetectionRadioButton.setText("Pre-Configured (HSV)");
         preconfigDetectionRadioButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 preconfigDetectionRadioButtonActionPerformed(evt);
             }
         });
-        jPanel2.add(preconfigDetectionRadioButton);
+        detectionTypePanel.add(preconfigDetectionRadioButton);
 
+        detectionTypeButtonGroup.add(faceDetectionRadioButton);
         faceDetectionRadioButton.setText("Face Detection (LBP)");
         faceDetectionRadioButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 faceDetectionRadioButtonActionPerformed(evt);
             }
         });
-        jPanel2.add(faceDetectionRadioButton);
+        detectionTypePanel.add(faceDetectionRadioButton);
 
-        qrDetectionRadioButton.setSelected(true);
+        detectionTypeButtonGroup.add(qrDetectionRadioButton);
         qrDetectionRadioButton.setText("QR Detection            ");
         qrDetectionRadioButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 qrDetectionRadioButtonActionPerformed(evt);
             }
         });
-        jPanel2.add(qrDetectionRadioButton);
+        detectionTypePanel.add(qrDetectionRadioButton);
 
-        getContentPane().add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 600, 800, 50));
+        getContentPane().add(detectionTypePanel, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 600, 800, 50));
 
-        resetDroneButton.setText("Reset Drone");
-        resetDroneButton.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                resetDroneButtonActionPerformed(evt);
-            }
-        });
-        getContentPane().add(resetDroneButton, new org.netbeans.lib.awtextra.AbsoluteConstraints(660, 70, 140, -1));
-
-        processPanel1.setBorder(javax.swing.BorderFactory.createEtchedBorder(javax.swing.border.EtchedBorder.RAISED));
-        processPanel1.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
-
-        pidPanelX.setBorder(javax.swing.BorderFactory.createEtchedBorder());
-        pidPanelX.setLayout(new java.awt.GridBagLayout());
-        processPanel1.add(pidPanelX, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 213, 100));
-
-        pidPanelY.setBorder(javax.swing.BorderFactory.createEtchedBorder());
-        pidPanelY.setLayout(new java.awt.GridBagLayout());
-        processPanel1.add(pidPanelY, new org.netbeans.lib.awtextra.AbsoluteConstraints(214, 0, 213, 100));
-
-        pidPanelZ.setBorder(javax.swing.BorderFactory.createEtchedBorder());
-        pidPanelZ.setLayout(new java.awt.GridBagLayout());
-        processPanel1.add(pidPanelZ, new org.netbeans.lib.awtextra.AbsoluteConstraints(427, 0, 213, 100));
-
-        getContentPane().add(processPanel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 490, 640, 100));
+        statusLabel.setText("[statusLabel]");
+        statusLabel.setBorder(javax.swing.BorderFactory.createBevelBorder(javax.swing.border.BevelBorder.LOWERED));
+        getContentPane().add(statusLabel, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 650, 800, 20));
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
@@ -575,6 +585,9 @@ public class MainForm extends javax.swing.JFrame {
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JRadioButton blueObjectColorRadioButton;
     private javax.swing.JPanel cameraPanel;
+    private javax.swing.JPanel chartsPanel;
+    private javax.swing.ButtonGroup detectionTypeButtonGroup;
+    private javax.swing.JPanel detectionTypePanel;
     private javax.swing.JPanel dilatePanel;
     private javax.swing.JPanel erodePanel;
     private javax.swing.JRadioButton faceDetectionRadioButton;
@@ -584,14 +597,13 @@ public class MainForm extends javax.swing.JFrame {
     private javax.swing.JSlider hueMaxSlider;
     private javax.swing.JSlider hueMinSlider;
     private javax.swing.JPanel huePanel;
-    private javax.swing.JPanel jPanel1;
-    private javax.swing.JPanel jPanel2;
+    private javax.swing.ButtonGroup objectColorButtonGroup;
+    private javax.swing.JPanel objectColorPanel;
     private javax.swing.JPanel pidPanelX;
     private javax.swing.JPanel pidPanelY;
     private javax.swing.JPanel pidPanelZ;
     private javax.swing.JRadioButton preconfigDetectionRadioButton;
     private javax.swing.JPanel processPanel;
-    private javax.swing.JPanel processPanel1;
     private javax.swing.JRadioButton qrDetectionRadioButton;
     private javax.swing.JRadioButton redObjectColorRadioButton;
     private javax.swing.JButton resetDroneButton;
