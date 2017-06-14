@@ -15,6 +15,9 @@
  */
 package mx.iteso.msc.ms705080.togapp.ui;
 
+import de.yadrone.base.navdata.Altitude;
+import de.yadrone.base.navdata.AltitudeListener;
+import de.yadrone.base.navdata.BatteryListener;
 import java.awt.GridBagConstraints;
 import java.awt.Insets;
 import java.awt.image.BufferedImage;
@@ -40,6 +43,9 @@ public class MainForm extends javax.swing.JFrame {
     // Charts
     private final PIDChart pidChartX;
     private final PIDChart pidChartY;
+    // Levels
+    private int altitude;
+    private int battery;
 
     /**
      * Creates new form MainForm
@@ -70,6 +76,28 @@ public class MainForm extends javax.swing.JFrame {
         this.dm.addListener((List<BufferedImage> images) -> {
             dmImageUpdated(images);
         });
+        this.dm.addListener(new AltitudeListener() {
+            @Override
+            public void receivedAltitude(int altitude) {
+                dmAltitudeUpdated(altitude);
+            }
+
+            @Override
+            public void receivedExtendedAltitude(Altitude altitude) {
+                // Not used
+            }
+        });
+        this.dm.addListener(new BatteryListener() {
+            @Override
+            public void batteryLevelChanged(int level) {
+                dmBatteryUpdated(level);
+            }
+
+            @Override
+            public void voltageChanged(int i) {
+                // Not used
+            }
+        });
         vp.addListener((int chMin1, int chMin2, int chMin3, int chMax1, int chMax2, int chMax3) -> {
             vpChannelsUpdated(chMin1, chMin2, chMin3, chMax1, chMax2, chMax3);
         });
@@ -86,6 +114,20 @@ public class MainForm extends javax.swing.JFrame {
         if (images.size() > 3) {
             dilatePanel.getGraphics().drawImage(images.get(3), 0, 0, 213, 120, null);
         }
+    }
+
+    private void dmAltitudeUpdated(int altitude) {
+        this.altitude = altitude;
+        updateLevels();
+    }
+
+    private void dmBatteryUpdated(int level) {
+        this.battery = level;
+        updateLevels();
+    }
+    
+    private void updateLevels() {
+        levelsLabel.setText(String.format("Battery: %d - Altitude: %d", battery, altitude));
     }
 
     private void vpChannelsUpdated(int chMin1, int chMin2, int chMin3, int chMax1, int chMax2, int chMax3) {
@@ -141,6 +183,7 @@ public class MainForm extends javax.swing.JFrame {
         faceDetectionRadioButton = new javax.swing.JRadioButton();
         qrDetectionRadioButton = new javax.swing.JRadioButton();
         statusLabel = new javax.swing.JLabel();
+        levelsLabel = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("UAV Ground Control Station");
@@ -435,7 +478,11 @@ public class MainForm extends javax.swing.JFrame {
 
         statusLabel.setText("[statusLabel]");
         statusLabel.setBorder(javax.swing.BorderFactory.createBevelBorder(javax.swing.border.BevelBorder.LOWERED));
-        getContentPane().add(statusLabel, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 650, 800, 20));
+        getContentPane().add(statusLabel, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 650, 580, 20));
+
+        levelsLabel.setText("[levelsLabel]");
+        levelsLabel.setBorder(javax.swing.BorderFactory.createBevelBorder(javax.swing.border.BevelBorder.LOWERED));
+        getContentPane().add(levelsLabel, new org.netbeans.lib.awtextra.AbsoluteConstraints(590, 650, 220, 20));
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
@@ -597,6 +644,7 @@ public class MainForm extends javax.swing.JFrame {
     private javax.swing.JSlider hueMaxSlider;
     private javax.swing.JSlider hueMinSlider;
     private javax.swing.JPanel huePanel;
+    private javax.swing.JLabel levelsLabel;
     private javax.swing.ButtonGroup objectColorButtonGroup;
     private javax.swing.JPanel objectColorPanel;
     private javax.swing.JPanel pidPanelX;
