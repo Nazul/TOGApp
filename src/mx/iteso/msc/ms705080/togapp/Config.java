@@ -20,14 +20,47 @@ package mx.iteso.msc.ms705080.togapp;
  * @author Mario Contreras <marioc@nazul.net>
  */
 public class Config {
-    // Left boundary
+
+    /**
+     * Left boundary
+     */
     public static final int MAX_LEFT = 427;
-    // Right boundary
+    /**
+     * Right boundary
+     */
     public static final int MAX_RIGHT = 853;
-    // Drone speed
+    /**
+     * Drone speed
+     */
     public static final int DRONE_SPEED = 10;
-    // Max altitude
+    /**
+     * Max altitude
+     */
     public static final int MAX_ALTITUDE = 2_000;
+    /**
+     * PID Constant - KP for X
+     */
+    public static final int KP_X = 5;
+    /**
+     * PID Constant - KI for X
+     */
+    public static final int KI_X = 10;
+    /**
+     * PID Constant - KD for X
+     */
+    public static final int KD_X = 12;
+    /**
+     * PID Constant - KP for Y
+     */
+    public static final int KP_Y = 5;
+    /**
+     * PID Constant - KI for Y
+     */
+    public static final int KI_Y = 10;
+    /**
+     * PID Constant - KD for Y
+     */
+    public static final int KD_Y = 12;
 }
 
 // EOF

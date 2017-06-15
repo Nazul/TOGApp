@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import mx.iteso.msc.ms705080.togapp.Config;
 import mx.iteso.msc.ms705080.togapp.DroneManager;
 import mx.iteso.msc.ms705080.togapp.TrackedObject;
 import mx.iteso.msc.ms705080.togapp.TrackedObjectColor;
@@ -50,6 +49,13 @@ import org.opencv.objdetect.Objdetect;
  * @author Mario Contreras <marioc@nazul.net>
  */
 public class VideoProcessor {
+
+    /**
+     * @return the trackedObject
+     */
+    public Point getTrackedObject() {
+        return trackedObject;
+    }
     // 720p (HD) - 1280x720
 
     // Listeners to notify
@@ -59,7 +65,7 @@ public class VideoProcessor {
     // OpenCV classifier for face detection
     private final CascadeClassifier faceCascade;
     // A flag to determinate if a tracked object exists on screen
-    private boolean objectDetected = false;
+    private boolean objectDetected;
     // The center of the currently tracked object
     private Point trackedObject = new Point(0.0d, 0.0d);
     // Predefined object to track
@@ -71,12 +77,8 @@ public class VideoProcessor {
     // Channel values
     private int chMin1, chMin2, chMin3;
     private int chMax1, chMax2, chMax3;
-    // PID Controller
-    private int center = 0;
-    private final int kp = 5, ki = 10, kd = 12;
-    //private int currentPos = center;
-    private double offset;
-    private double error, lastError, integral, derivative;
+    // Image boundaries
+    private int width, height;
     // Drone Manager
     private final DroneManager dm;
     // Current detection algorithm
@@ -90,13 +92,14 @@ public class VideoProcessor {
         QR_DETECTION
     }
 
-    public VideoProcessor(DroneManager dm, int width) {
+    public VideoProcessor(DroneManager dm, int width, int height) {
         this.dm = dm;
         // Load classifier for face detection
         faceCascade = new CascadeClassifier(getClass().getResource("/mx/iteso/msc/ms705080/togapp/resources/lbpcascade_frontalface.xml").getFile().substring(1).replace("/", "\\").replace("%20", " "));
         absoluteFaceSize = 0;
-        // Initialize PID Controller
-        center = width / 2;
+        this.width = width;
+        this.height = height;
+        this.objectDetected = false;
     }
 
     public void addListener(ChannelValuesListener listener) {
@@ -198,7 +201,7 @@ public class VideoProcessor {
             objectDetected = true;
             trackedObject.x = facesArray[0].x + facesArray[0].width / 2;
             trackedObject.y = facesArray[0].y + facesArray[0].height / 2;
-            Util.DrawCrosshairs(frame, (int) trackedObject.x, (int) trackedObject.y);
+            Util.DrawCrosshairs(frame, (int) getTrackedObject().x, (int) getTrackedObject().y);
         }
         results.add(Util.Mat2Image(frame));
         results.add(grayImage);
@@ -232,7 +235,7 @@ public class VideoProcessor {
         if (qrCenter != null) {
             objectDetected = true;
             trackedObject = qrCenter;
-            Util.DrawCrosshairs(frame, (int) trackedObject.x, (int) trackedObject.y);
+            Util.DrawCrosshairs(frame, (int) getTrackedObject().x, (int) getTrackedObject().y);
         }
         results.add(Util.Mat2Image(frame));
         results.add(grayImage);
@@ -474,7 +477,6 @@ public class VideoProcessor {
     public List<BufferedImage> ProcessFrame(BufferedImage currentFrame) {
         // Init everything
         List<BufferedImage> results = null;
-        //BufferedImage imageToShow = null;
         Mat frame;
 
         // Check if the capture is open
@@ -502,10 +504,10 @@ public class VideoProcessor {
                         break;
                 }
                 // If the drone is in tracking mode, then draw boundaries
-                if (dm.isDroneTracking() && frame != null) {
-                    Imgproc.rectangle(frame, new Point(0, 0), new Point(Config.MAX_LEFT, 720), new Scalar(255, 0, 255), 5);
-                    Imgproc.rectangle(frame, new Point(Config.MAX_RIGHT, 0), new Point(1280, 720), new Scalar(255, 0, 255), 5);
-                }
+                //if (dm.isDroneTracking() && frame != null) {
+                //    Imgproc.rectangle(frame, new Point(0, 0), new Point(Config.MAX_LEFT, 720), new Scalar(255, 0, 255), 5);
+                //    Imgproc.rectangle(frame, new Point(Config.MAX_RIGHT, 0), new Point(1280, 720), new Scalar(255, 0, 255), 5);
+                //}
                 // convert the Mat object (OpenCV) to Image (Java AWT)
                 //imageToShow = Util.Mat2Image(frame);
             } catch (Exception e) {
@@ -543,6 +545,27 @@ public class VideoProcessor {
      */
     public void setType(ProcessType type) {
         this.type = type;
+    }
+
+    /**
+     * @return the objectDetected
+     */
+    public boolean ObjectDetected() {
+        return objectDetected;
+    }
+
+    /**
+     * @return the width
+     */
+    public int getWidth() {
+        return width;
+    }
+
+    /**
+     * @return the height
+     */
+    public int getHeight() {
+        return height;
     }
 }
 

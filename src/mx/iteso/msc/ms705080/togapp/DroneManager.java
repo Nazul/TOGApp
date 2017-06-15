@@ -16,6 +16,7 @@
 package mx.iteso.msc.ms705080.togapp;
 
 import de.yadrone.base.ARDrone;
+import de.yadrone.base.command.CommandManager;
 import de.yadrone.base.command.VideoChannel;
 import de.yadrone.base.command.VideoCodec;
 import de.yadrone.base.navdata.Altitude;
@@ -52,15 +53,24 @@ public class DroneManager implements ImageListener, AltitudeListener, BatteryLis
     private int currentAltitude;
     // A timer for processing the video stream
     private final ScheduledExecutorService videoTimer;
+    // A timer for processing the drone movement
+    private final ScheduledExecutorService droneTimer;
     // Video processing
     private VideoProcessor videoProcessor;
+    // PID Controller
+    private int xCenter = 0;
+    private double xOffset;
+    private double xError, xLastError, xIntegral, xDerivative;
+    private int yCenter = 0;
+    private double yOffset;
+    private double yError, yLastError, yIntegral, yDerivative;
 
     @Override
     public void receivedAltitude(int altitude) {
         currentAltitude = altitude;
-                altitudeListeners.forEach((listener) -> {
-                    listener.receivedAltitude(altitude);
-                });
+        altitudeListeners.forEach((listener) -> {
+            listener.receivedAltitude(altitude);
+        });
     }
 
     @Override
@@ -70,9 +80,9 @@ public class DroneManager implements ImageListener, AltitudeListener, BatteryLis
 
     @Override
     public void batteryLevelChanged(int level) {
-                batteryListeners.forEach((listener) -> {
-                    listener.batteryLevelChanged(level);
-                });
+        batteryListeners.forEach((listener) -> {
+            listener.batteryLevelChanged(level);
+        });
     }
 
     @Override
@@ -90,6 +100,44 @@ public class DroneManager implements ImageListener, AltitudeListener, BatteryLis
                 videoListeners.forEach((listener) -> {
                     listener.imageUpdated(results);
                 });
+            }
+        }
+    }
+
+    private class objectTracker implements Runnable {
+
+        @Override
+        public void run() {
+            if (droneActive && droneTracking && videoProcessor.ObjectDetected()) {
+                System.out.println("Trying to do something...");
+
+                // PID
+                // Normalize current position
+                double xCurPos = 2.0d * videoProcessor.getTrackedObject().x / (double) videoProcessor.getWidth() - 1.0d;
+                double yCurPos = 2.0d * videoProcessor.getTrackedObject().y / (double) videoProcessor.getHeight() - 1.0d;
+                xOffset = 0.0d - xCurPos;
+                yOffset = 0.0d - yCurPos;
+                xError = xCurPos - xOffset;
+                yError = yCurPos - yOffset;
+                xIntegral += xError;
+                yIntegral += yError;
+                xDerivative -= xLastError;
+                yDerivative -= yLastError;
+                double xMove = Config.KP_X * xError + Config.KI_X * xIntegral + Config.KD_X * xDerivative;
+                double yMove = Config.KP_Y * yError + Config.KI_Y * yIntegral + Config.KD_Y * yDerivative;
+                xLastError = xError;
+                yLastError = yError;
+                CommandManager cmd = drone.getCommandManager();
+                if (xMove > 0) {
+                    cmd.spinRight((int) Math.abs(xMove * 0.1d)).doFor(10);
+                } else {
+                    cmd.spinLeft((int) Math.abs(xMove * 0.1d)).doFor(10);
+                }
+                if (yMove < 0) {
+                    cmd.up((int) Math.abs(yMove * 0.1d)).doFor(10);
+                } else {
+                    cmd.down((int) Math.abs(yMove * 0.1d)).doFor(10);
+                }
             }
         }
     }
@@ -112,6 +160,9 @@ public class DroneManager implements ImageListener, AltitudeListener, BatteryLis
         // Grab a frame every 33 ms (30 frames/sec)
         videoTimer = Executors.newSingleThreadScheduledExecutor();
         videoTimer.scheduleAtFixedRate(new videoUpdater(), 0, 66, TimeUnit.MILLISECONDS);
+        // Verify tracked object position every 0.5 seconds and react accordangly
+        droneTimer = Executors.newSingleThreadScheduledExecutor();
+        droneTimer.scheduleAtFixedRate(new objectTracker(), 0, 500, TimeUnit.MILLISECONDS);
     }
 
     public void addListener(ProcessedImagesListener listener) {
@@ -173,6 +224,9 @@ public class DroneManager implements ImageListener, AltitudeListener, BatteryLis
      */
     public void setVideoProcessor(VideoProcessor videoProcessor) {
         this.videoProcessor = videoProcessor;
+        // Initialize PID Controller
+        xCenter = videoProcessor.getWidth() / 2;
+        yCenter = videoProcessor.getHeight() / 2;
     }
 
     /**

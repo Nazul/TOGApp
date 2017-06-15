@@ -51,6 +51,7 @@ public class PIDChart {
 
     /**
      * Create a new instance of this chart.
+     *
      * @param logName
      */
     public PIDChart(String logName) {
@@ -128,7 +129,7 @@ public class PIDChart {
         chart = new JFreeChart(plot);
         chart.setBackgroundPaint(Color.white);
     }
-    
+
     public void closeLog() {
         if (pw != null) {
             pw.close();

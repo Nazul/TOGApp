@@ -22,13 +22,14 @@ import org.opencv.core.Scalar;
  * @author Mario Contreras - marioc@nazul.net
  */
 public class TrackedObject {
+
     private final TrackedObjectColor type;
     private Scalar hsvMin, hsvMax;
     private Scalar color;
-    
+
     public TrackedObject(TrackedObjectColor type) {
         this.type = type;
-        switch(type) {
+        switch (type) {
             case BLUE:
                 hsvMin = new Scalar(92, 0, 0);
                 hsvMax = new Scalar(124, 256, 256);

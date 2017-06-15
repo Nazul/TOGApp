@@ -18,6 +18,7 @@ package mx.iteso.msc.ms705080.togapp.cv;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import javax.imageio.ImageIO;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -52,7 +53,7 @@ public class Util {
         BufferedImage img = null;
         try {
             img = ImageIO.read(new ByteArrayInputStream(buffer.toArray()));
-        } catch (Exception e) {
+        } catch (IOException e) {
             // log the error
             System.err.println("Exception while converting frame: " + e);
         }

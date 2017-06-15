@@ -46,7 +46,7 @@ public class TOGApp {
                 } catch (ClassNotFoundException | IllegalAccessException | InstantiationException | UnsupportedLookAndFeelException e) {
                     e.printStackTrace();
                 }
-                
+
                 // Initialize UAV Manager
                 dm = new DroneManager();
 

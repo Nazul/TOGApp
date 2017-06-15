@@ -64,7 +64,7 @@ public class MainForm extends javax.swing.JFrame {
         JPanel chartPanelY = new ChartPanel(pidChartY.getChart(), true, true, true, true, true);
         pidPanelY.add(chartPanelY, new GridBagConstraints(0, 0, 1, 1, 1, 1, GridBagConstraints.FIRST_LINE_START, GridBagConstraints.BOTH, new Insets(0, 0, 5, 0), 0, 0));
 
-        vp = new VideoProcessor(dm, cameraPanel.getWidth());
+        vp = new VideoProcessor(dm, cameraPanel.getWidth(), cameraPanel.getHeight());
         dm.setVideoProcessor(vp);
         vp.setType(ProcessType.COLOR_HSV);
 
@@ -125,7 +125,7 @@ public class MainForm extends javax.swing.JFrame {
         this.battery = level;
         updateLevels();
     }
-    
+
     private void updateLevels() {
         levelsLabel.setText(String.format("Battery: %d - Altitude: %d", battery, altitude));
     }
@@ -668,3 +668,5 @@ public class MainForm extends javax.swing.JFrame {
     private javax.swing.JRadioButton yellowObjectColorRadioButton;
     // End of variables declaration//GEN-END:variables
 }
+
+// EOF
