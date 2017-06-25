@@ -139,6 +139,9 @@ public class DroneManager implements ImageListener, AltitudeListener, BatteryLis
                     cmd.down((int) Math.abs(yMove * 0.1d)).doFor(10);
                 }
             }
+            else {
+                drone.hover();
+            }
         }
     }
 
@@ -159,10 +162,10 @@ public class DroneManager implements ImageListener, AltitudeListener, BatteryLis
 
         // Grab a frame every 33 ms (30 frames/sec)
         videoTimer = Executors.newSingleThreadScheduledExecutor();
-        videoTimer.scheduleAtFixedRate(new videoUpdater(), 0, 66, TimeUnit.MILLISECONDS);
+        videoTimer.scheduleAtFixedRate(new videoUpdater(), 0, 33, TimeUnit.MILLISECONDS);
         // Verify tracked object position every 0.5 seconds and react accordangly
         droneTimer = Executors.newSingleThreadScheduledExecutor();
-        droneTimer.scheduleAtFixedRate(new objectTracker(), 0, 500, TimeUnit.MILLISECONDS);
+        droneTimer.scheduleAtFixedRate(new objectTracker(), 0, 750, TimeUnit.MILLISECONDS);
     }
 
     public void addListener(ProcessedImagesListener listener) {

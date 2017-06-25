@@ -279,6 +279,12 @@ public class VideoProcessor {
                 for (ChannelValuesListener listener : listeners) {
                     listener.channelsUpdated(hmin, smin, vmin, hmax, smax, vmax);
                 }
+                chMin1 = hmin;
+                chMin2 = smin;
+                chMin3 = vmin;
+                chMax1 = hmax;
+                chMax2 = smax;
+                chMax3 = vmax;
                 Imgproc.rectangle(frame, new Point(mx - 50, my - 50), new Point(mx + 50, my + 50), new Scalar(255, 0, 255), 4);
             } catch (Exception ex) {
 
@@ -350,23 +356,29 @@ public class VideoProcessor {
         // Get color of current coordinates
         if (mouseClicked) {
             try {
-                int hmin = 180, smin = 255, vmin = 255;
-                int hmax = 0, smax = 0, vmax = 0;
+                int rmin = 255, gmin = 255, bmin = 255;
+                int rmax = 0, gmax = 0, bmax = 0;
 
                 for (int i = mx - 50; i < mx + 50; i++) {
                     for (int j = my - 50; j < my + 50; j++) {
-                        double[] hsv = rgbImage.get(j, i);
-                        hmin = (int) (hsv[0] < hmin ? hsv[0] : hmin);
-                        hmax = (int) (hsv[0] > hmax ? hsv[0] : hmax);
-                        smin = (int) (hsv[1] < smin ? hsv[1] : smin);
-                        smax = (int) (hsv[1] > smax ? hsv[1] : smax);
-                        vmin = (int) (hsv[2] < vmin ? hsv[2] : vmin);
-                        vmax = (int) (hsv[2] > vmax ? hsv[2] : vmax);
+                        double[] rgb = rgbImage.get(j, i);
+                        rmin = (int) (rgb[0] < rmin ? rgb[0] : rmin);
+                        rmax = (int) (rgb[0] > rmax ? rgb[0] : rmax);
+                        gmin = (int) (rgb[1] < gmin ? rgb[1] : gmin);
+                        gmax = (int) (rgb[1] > gmax ? rgb[1] : gmax);
+                        bmin = (int) (rgb[2] < bmin ? rgb[2] : bmin);
+                        bmax = (int) (rgb[2] > bmax ? rgb[2] : bmax);
                     }
                 }
                 for (ChannelValuesListener listener : listeners) {
-                    listener.channelsUpdated(hmin, smin, vmin, hmax, smax, vmax);
+                    listener.channelsUpdated(rmin, gmin, bmin, rmax, gmax, bmax);
                 }
+                chMin1 = rmin;
+                chMin2 = gmin;
+                chMin3 = bmin;
+                chMax1 = rmax;
+                chMax2 = gmax;
+                chMax3 = bmax;
                 Imgproc.rectangle(frame, new Point(mx - 50, my - 50), new Point(mx + 50, my + 50), new Scalar(255, 0, 255), 4);
             } catch (Exception ex) {
 
@@ -376,10 +388,11 @@ public class VideoProcessor {
         }
 
         // Get thresholding values from the UI
+        // Remember: R, G & B values 0-255
         Scalar minValues = new Scalar(chMin1, chMin2, chMin3);
         Scalar maxValues = new Scalar(chMax1, chMax2, chMax3);
 
-        // Threshold HSV image to select object
+        // Threshold RGB image to select object
         Core.inRange(rgbImage, minValues, maxValues, mask);
 
         // Morphological operators
